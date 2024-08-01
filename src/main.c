@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <inttypes.h>
 #include <stdlib.h>
+#include <errno.h>
 #include <sys/socket.h>
 #include <net/if.h>
 #include <sys/ioctl.h>
@@ -66,17 +67,32 @@ void dhcp_discover_handler(struct dhcp_packet *packet, void (*reply)(struct dhcp
 }
 
 void packet_listener() {
-	int sock;
+	int sock, i;
+	uint8_t buffer[256];
 	sock = socket(AF_PACKET, SOCK_RAW, SOCK_STREAM);
 
+	if (sock == -1) {
+		errno = 
+		return;
+	}
+
 	struct ifreq ifinfo;
-	memset(&info, 0, sizeof(struct ifreq));
+	memset(&ifinfo, 0, sizeof(struct ifreq));
 	snprintf(ifinfo.ifr_name, sizeof(ifinfo.ifr_name), "wlan0");
-	setsockopt(sock, 
+	setsockopt(sock, SOL_SOCKET, &ifinfo, sizeof(ifinfo));
+
+	while (true) {
+		if (recv(sock, buffer, sizeof(buffer)) > 0) {
+			for (i = 0; i < sizeof(buffer); i++) {
+				printf("%d: 0x%x\n", i, buffer[i]);	
+			}
+		}
+	}
 	
 }
 
 int main(void) {
 	printf("Hello World");
+	packet_listener();
 	return 0;
 }
