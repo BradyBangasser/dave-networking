@@ -104,39 +104,59 @@ void packet_listener() {
 void pcap_packet_listener() {
 	char errbuf[PCAP_ERRBUF_SIZE];
 	int result;
+	uint32_t pktcnt = 0;
+	struct pcap_pkthdr *pkthdr;
+	uint8_t *pktdata;
+	pcap_t *pcap_instance = NULL;
 
 	if (pcap_init(0, errbuf)) {
 		printf("Error initialising PCAP, error message: %s\n", errbuf);
 		return;
 	}
 
-	pcap_t *pcap_instance = pcap_create("eth0", errbuf);
+	// pcap_t *pcap_instance = pcap_create("eth0", errbuf);
+	pcap_instance = pcap_open_live(NULL, 262144, 1, 2000, errbuf);
 
 	if (pcap_instance == NULL) {
 		printf("Error creating PCAP instance, error message: %s\n", errbuf);
 		return;
 	}
 
-	result = pcap_activate(pcap_instance);
-
-	switch (result) {
-		case 0: break;
-		case PCAP_WARNING_PROMISC_NOTSUP: {
-			printf("This device doesn't support promiscuous mode\n");
-			return;
-		}
-		default: {
-			printf("Error activating pcap_instance, error code: %d\n", result);
-			return;
-		}
-	}
+// 	result = pcap_activate(pcap_instance);
+//
+//	switch (result) {
+//		case 0: break;
+//		case PCAP_WARNING_PROMISC_NOTSUP: {
+//			printf("This device doesn't support promiscuous mode\n");
+//			pcap_close(pcap_instance);
+//			pcap_instance = NULL;
+//			return;
+//		}
+//		default: {
+//			printf("Error activating pcap_instance, error code: %d\n%s\n", result, pcap_statustostr(result));
+//			pcap_close(pcap_instance);
+//			pcap_instance = NULL;
+//			return;
+//		}
+//	}
 
 	printf("Working\n");
-	while (1);
+
+	while (1) {
+		if (!pcap_next_ex(pcap_instance, &pkthdr, &pktdata)) {
+			printf("Error Reading packet\n");
+			pcap_close(pcap_instance);
+			pcap_instance = NULL;
+			return;
+		}
+
+		fprintf(stderr, "Packet %d, len: %d\n", pktcnt, pkthdr->len);
+		pktcnt++;
+	}
 }
 
 int main(void) {
-	printf("Hello World\n");
-	packet_listener();
+	// packet_listener();
+	pcap_packet_listener();
 	return 0;
 }
