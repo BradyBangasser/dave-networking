@@ -5,6 +5,9 @@
 #include <sys/socket.h>
 #include <net/if.h>
 #include <sys/ioctl.h>
+#include <string.h>
+#include <netinet/in.h>
+#include <pcap.h>
 
 #define ONE_DAY_IN_SECS 86400
 
@@ -13,8 +16,8 @@
 uint8_t pool[4][256];
 
 enum OP_CODES {
-	OP_BOOTREQUEST = 1;
-	OP_BOOTREPLY;
+	OP_BOOTREQUEST = 1,
+	OP_BOOTREPLY
 };
 
 // DHCP packet according to RFC 2131`
@@ -54,7 +57,7 @@ void dhcp_discover_handler(struct dhcp_packet *packet, void (*reply)(struct dhcp
 	}
 
 	if (packet->ciaddr != 0) {
-		reply_packet->ciaddr = ciaddr;			
+		reply_packet->ciaddr = packet->ciaddr;
 	} else {
 		// TODO: Assign IP Here
 	}
@@ -69,20 +72,27 @@ void dhcp_discover_handler(struct dhcp_packet *packet, void (*reply)(struct dhcp
 void packet_listener() {
 	int sock, i;
 	uint8_t buffer[256];
-	sock = socket(AF_PACKET, SOCK_RAW, SOCK_STREAM);
+	sock = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
 
 	if (sock == -1) {
-		errno = 
+		switch (errno) {
+			case 1: printf("This program needs to be run as root\n"); break;
+			default: printf("ERROR 76 %d\n", errno); break;
+		}
+		
 		return;
 	}
 
 	struct ifreq ifinfo;
 	memset(&ifinfo, 0, sizeof(struct ifreq));
-	snprintf(ifinfo.ifr_name, sizeof(ifinfo.ifr_name), "wlan0");
-	setsockopt(sock, SOL_SOCKET, &ifinfo, sizeof(ifinfo));
+	// snprintf(ifinfo.ifr_name, sizeof(ifinfo.ifr_name), "wlan0");
+	if (setsockopt(sock, SOL_SOCKET, SO_BINDTODEVICE, &ifinfo, sizeof(ifinfo)) == -1) {
+		printf("ERROR Binding: %d\n", errno);
+		return;
+	}
 
-	while (true) {
-		if (recv(sock, buffer, sizeof(buffer)) > 0) {
+	while (1) {
+		if (recv(sock, buffer, sizeof(buffer), 0) > 0) {
 			for (i = 0; i < sizeof(buffer); i++) {
 				printf("%d: 0x%x\n", i, buffer[i]);	
 			}
@@ -92,7 +102,7 @@ void packet_listener() {
 }
 
 int main(void) {
-	printf("Hello World");
+	printf("Hello World\n");
 	packet_listener();
 	return 0;
 }
