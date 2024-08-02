@@ -101,6 +101,40 @@ void packet_listener() {
 	
 }
 
+void pcap_packet_listener() {
+	char errbuf[PCAP_ERRBUF_SIZE];
+	int result;
+
+	if (pcap_init(0, errbuf)) {
+		printf("Error initialising PCAP, error message: %s\n", errbuf);
+		return;
+	}
+
+	pcap_t *pcap_instance = pcap_create("eth0", errbuf);
+
+	if (pcap_instance == NULL) {
+		printf("Error creating PCAP instance, error message: %s\n", errbuf);
+		return;
+	}
+
+	result = pcap_activate(pcap_instance);
+
+	switch (result) {
+		case 0: break;
+		case PCAP_WARNING_PROMISC_NOTSUP: {
+			printf("This device doesn't support promiscuous mode\n");
+			return;
+		}
+		default: {
+			printf("Error activating pcap_instance, error code: %d\n", result);
+			return;
+		}
+	}
+
+	printf("Working\n");
+	while (1);
+}
+
 int main(void) {
 	printf("Hello World\n");
 	packet_listener();
