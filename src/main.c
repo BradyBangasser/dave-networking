@@ -106,7 +106,8 @@ void pcap_packet_listener() {
 	int result;
 	uint32_t pktcnt = 0;
 	struct pcap_pkthdr *pkthdr;
-	uint8_t *pktdata;
+	struct bpf_program filter;
+	const uint8_t *pktdata;
 	pcap_t *pcap_instance = NULL;
 
 	if (pcap_init(0, errbuf)) {
@@ -114,14 +115,43 @@ void pcap_packet_listener() {
 		return;
 	}
 
-	// pcap_t *pcap_instance = pcap_create("eth0", errbuf);
-	pcap_instance = pcap_open_live(NULL, 262144, 1, 2000, errbuf);
+	pcap_instance = pcap_create("wlan0", errbuf);
 
 	if (pcap_instance == NULL) {
 		printf("Error creating PCAP instance, error message: %s\n", errbuf);
 		return;
 	}
 
+	result = pcap_can_set_rfmon(pcap_instance);
+	// if (result == 1) {
+	if (!result) {
+		result = pcap_set_rfmon(pcap_instance, 1);
+		if (result != 0) {
+			printf("Failed to set monitor mode: %s\n", pcap_strerror(result));
+			pcap_close(pcap_instance);
+			return;
+		}
+	} else {
+		printf("Can't set device in monitor mode, error number: %d\n", result);
+	}
+
+	result = pcap_activate(pcap_instance);
+
+	printf("Activation result: %s\n", pcap_strerror(result));
+
+	result = pcap_compile(pcap_instance, &filter, "icmp[icmptype] == icmp-echo or icmp[icmptype] == icmp-echoreply", 1, PCAP_NETMASK_UNKNOWN);
+	if (result != 0) {
+		printf("Failed to compile filter, error: %s\n", pcap_geterr(pcap_instance));
+		pcap_close(pcap_instance);
+		return;
+	}
+
+	result = pcap_setfilter(pcap_instance, &filter);
+	if (result != 0) {
+		printf("Failed to set filter, error: %s\n", pcap_geterr(pcap_instance));
+		pcap_close(pcap_instance);
+		return;
+	}
 // 	result = pcap_activate(pcap_instance);
 //
 //	switch (result) {
@@ -157,6 +187,7 @@ void pcap_packet_listener() {
 
 int main(void) {
 	// packet_listener();
+	printf("%d\n", PCAP_ERROR_RFMON_NOTSUP);
 	pcap_packet_listener();
 	return 0;
 }
