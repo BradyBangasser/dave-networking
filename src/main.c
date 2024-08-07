@@ -39,6 +39,11 @@ struct dhcp_packet {
 	uint8_t var[256];
 };
 
+struct IEEE_802_11_frame {
+	uint8_t header[30];
+	uint8_t payload[2312];
+};
+
 void dhcp_discover_handler(struct dhcp_packet *packet, void (*reply)(struct dhcp_packet *)) {
 	#ifdef FORWARD
 		// code here to forward request to the bethel dhcp server
@@ -85,7 +90,7 @@ void packet_listener() {
 
 	struct ifreq ifinfo;
 	memset(&ifinfo, 0, sizeof(struct ifreq));
-	// snprintf(ifinfo.ifr_name, sizeof(ifinfo.ifr_name), "wlan0");
+	snprintf(ifinfo.ifr_name, sizeof(ifinfo.ifr_name), "wlan0");
 	if (setsockopt(sock, SOL_SOCKET, SO_BINDTODEVICE, &ifinfo, sizeof(ifinfo)) == -1) {
 		printf("ERROR Binding: %d\n", errno);
 		return;
@@ -123,8 +128,7 @@ void pcap_packet_listener() {
 	}
 
 	result = pcap_can_set_rfmon(pcap_instance);
-	// if (result == 1) {
-	if (!result) {
+	if (result == 1) {
 		result = pcap_set_rfmon(pcap_instance, 1);
 		if (result != 0) {
 			printf("Failed to set monitor mode: %s\n", pcap_strerror(result));
@@ -138,6 +142,7 @@ void pcap_packet_listener() {
 	result = pcap_activate(pcap_instance);
 
 	printf("Activation result: %s\n", pcap_strerror(result));
+	pcap_perror(pcap_instance, "Error: ");
 
 	result = pcap_compile(pcap_instance, &filter, "icmp[icmptype] == icmp-echo or icmp[icmptype] == icmp-echoreply", 1, PCAP_NETMASK_UNKNOWN);
 	if (result != 0) {
@@ -146,12 +151,12 @@ void pcap_packet_listener() {
 		return;
 	}
 
-	result = pcap_setfilter(pcap_instance, &filter);
-	if (result != 0) {
-		printf("Failed to set filter, error: %s\n", pcap_geterr(pcap_instance));
-		pcap_close(pcap_instance);
-		return;
-	}
+// result = pcap_setfilter(pcap_instance, &filter);
+//	if (result != 0) {
+//		printf("Failed to set filter, error: %s\n", pcap_geterr(pcap_instance));
+//		pcap_close(pcap_instance);
+//		return;
+//	}
 // 	result = pcap_activate(pcap_instance);
 //
 //	switch (result) {
@@ -172,13 +177,23 @@ void pcap_packet_listener() {
 
 	printf("Working\n");
 
+	struct IEEE_802_11_frame frame;
+
 	while (1) {
+		memset(&frame, 0, sizeof(frame));
 		if (!pcap_next_ex(pcap_instance, &pkthdr, &pktdata)) {
 			printf("Error Reading packet\n");
 			pcap_close(pcap_instance);
 			pcap_instance = NULL;
 			return;
 		}
+		memcpy(&frame, pktdata, pkthdr->len);
+		printf("Packet Data:\n");
+
+		for (int i = 0; i < pkthdr->len; i++) {
+			printf("%d 0x%x %c\n", i, pktdata[i], pktdata[i]);
+		}
+		break;
 
 		fprintf(stderr, "Packet %d, len: %d\n", pktcnt, pkthdr->len);
 		pktcnt++;
@@ -187,7 +202,7 @@ void pcap_packet_listener() {
 
 int main(void) {
 	// packet_listener();
-	printf("%d\n", PCAP_ERROR_RFMON_NOTSUP);
+	printf("%d %d\n", PCAP_ERROR_RFMON_NOTSUP, PCAP_ERROR_PROMISC_PERM_DENIED);
 	pcap_packet_listener();
 	return 0;
 }
